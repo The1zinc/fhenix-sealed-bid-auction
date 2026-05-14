@@ -1,0 +1,24 @@
+{
+  "name": "blind-auction-contracts",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run tasks/deploy.ts --network hardhat",
+    "deploy:testnet": "hardhat run tasks/deploy.ts --network arbSepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "cofhe-hardhat-plugin": "latest",
+    "dotenv": "^16.0.0",
+    "ethers": "^6.13.0",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@cofhe/sdk": "latest",
+    "@fhenixprotocol/cofhe-contracts": "latest",
+    "@openzeppelin/contracts": "5.0.2"
+  }
+}
