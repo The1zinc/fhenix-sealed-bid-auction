@@ -1,7 +1,7 @@
-﻿{
+{
     "network":  "arbSepolia",
     "chainId":  421614,
-    "address":  "",
+    "address":  "0x70D0e7811efC8e78988e47cAdEB88E3DCDa17598",
     "abi":  [
                 {
                     "inputs":  [
