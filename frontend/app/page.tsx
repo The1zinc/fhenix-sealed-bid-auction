@@ -300,7 +300,7 @@ export default function HomePage() {
 
       {/* Content */}
       {activeTab === "create" ? (
-        <section className="mt-8 max-w-4xl animate-slide-up">
+        <section className="mx-auto mt-8 w-full max-w-4xl animate-slide-up">
           <CreateAuctionForm />
         </section>
       ) : isLoading ? (
