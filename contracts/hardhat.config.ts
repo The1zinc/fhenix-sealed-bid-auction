@@ -13,7 +13,7 @@ import * as dotenv from "dotenv";
 
 import "./tasks/createAuction";
 import "./tasks/placeBid";
-import "./tasks/closeAuction";
+import "./tasks/finalizeAuction";
 import "./tasks/revealWinner";
 
 dotenv.config();

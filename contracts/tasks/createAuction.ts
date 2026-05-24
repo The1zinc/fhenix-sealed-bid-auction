@@ -19,14 +19,34 @@ function getBlindAuctionAddress(): string {
   throw new Error("Set BLIND_AUCTION_ADDRESS or run the deploy task first.");
 }
 
-task("create-auction", "Create a sealed-bid auction")
+const AUCTION_TYPES: Record<string, number> = {
+  sealed: 0,
+  "sealed-bid": 0,
+  english: 1,
+  dutch: 2,
+};
+
+function parseAuctionType(value: string): number {
+  const parsed = AUCTION_TYPES[value.toLowerCase()];
+  if (parsed === undefined) {
+    throw new Error("Auction type must be one of: sealed, english, dutch.");
+  }
+
+  return parsed;
+}
+
+task("create-auction", "Create an auction")
   .addParam("duration", "Auction duration in seconds", undefined, types.int)
-  .setAction(async ({ duration }, hre) => {
+  .addOptionalParam("type", "Auction type: sealed, english, dutch", "sealed", types.string)
+  .addOptionalParam("startPrice", "Minimum/opening price, or Dutch start price", 0, types.int)
+  .addOptionalParam("reservePrice", "Dutch reserve price", 0, types.int)
+  .setAction(async ({ duration, type, startPrice, reservePrice }, hre) => {
     const [signer] = await hre.ethers.getSigners();
     const address = getBlindAuctionAddress();
     const contract = await hre.ethers.getContractAt("BlindAuction", address, signer);
 
-    const tx = await contract.createAuction(duration);
+    const auctionType = parseAuctionType(type);
+    const tx = await contract.createAuction(duration, auctionType, startPrice, reservePrice);
     const receipt = await tx.wait();
 
     let auctionId: bigint | undefined;
@@ -46,5 +66,5 @@ task("create-auction", "Create a sealed-bid auction")
       auctionId = await contract.auctionCount();
     }
 
-    console.log(`Created auction ${auctionId.toString()} in tx ${tx.hash}`);
+    console.log(`Created ${type} auction ${auctionId.toString()} in tx ${tx.hash}`);
   });

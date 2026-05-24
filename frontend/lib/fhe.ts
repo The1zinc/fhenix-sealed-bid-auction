@@ -1,10 +1,29 @@
 import { ethers, type BrowserProvider } from "ethers";
-import type { CofheClient, DecryptForTxResult } from "@cofhe/sdk";
-import { createCofheClient, createCofheConfig } from "@cofhe/sdk/web";
-import { Ethers6Adapter } from "@cofhe/sdk/adapters";
-import { arbSepolia } from "@cofhe/sdk/chains";
+
+// Actual SDK modules are loaded lazily via dynamic import() so that the heavy
+// tfhe WASM bundle is never pulled into the initial webpack compilation.
+// This keeps the build fast and avoids Vercel Hobby timeouts.
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type CofheClient = any;
+
+export type DecryptForTxResult = {
+  ctHash: bigint | string;
+  decryptedValue: bigint;
+  signature: string;
+};
+
+async function loadSdk() {
+  const [{ createCofheClient, createCofheConfig }, { Ethers6Adapter }, { arbSepolia }] = await Promise.all([
+    import("@cofhe/sdk/web"),
+    import("@cofhe/sdk/adapters"),
+    import("@cofhe/sdk/chains"),
+  ]);
+  return { createCofheClient, createCofheConfig, Ethers6Adapter, arbSepolia };
+}
 
 export async function initCofheClient(provider: BrowserProvider) {
+  const { createCofheClient, createCofheConfig, Ethers6Adapter, arbSepolia } = await loadSdk();
   const signer = await provider.getSigner();
   const { publicClient, walletClient } = await Ethers6Adapter(provider, signer);
   const client = createCofheClient(
@@ -19,7 +38,7 @@ export async function initCofheClient(provider: BrowserProvider) {
 }
 
 export async function decryptAuctionResult(
-  client: CofheClient,
+  client: any,
   bidCtHash: bigint | string,
   bidderCtHash: bigint | string,
 ): Promise<{ bidResult: DecryptForTxResult; bidderResult: DecryptForTxResult }> {

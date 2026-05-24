@@ -19,15 +19,15 @@ function getBlindAuctionAddress(): string {
   throw new Error("Set BLIND_AUCTION_ADDRESS or run the deploy task first.");
 }
 
-task("close-auction", "Close an auction and make encrypted handles public")
+task("finalize-auction", "Finalize an auction after it ends")
   .addParam("auctionId", "Contract auction id", undefined, types.string)
   .setAction(async ({ auctionId }, hre) => {
     const [signer] = await hre.ethers.getSigners();
     const address = getBlindAuctionAddress();
     const contract = await hre.ethers.getContractAt("BlindAuction", address, signer);
 
-    const tx = await contract.closeAuction(auctionId);
+    const tx = await contract.finalizeAuction(auctionId);
     await tx.wait();
 
-    console.log(`Closed auction ${auctionId} in tx ${tx.hash}`);
+    console.log(`Finalized or ended auction ${auctionId} in tx ${tx.hash}`);
   });

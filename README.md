@@ -1,15 +1,15 @@
-# Sealed-Bid Confidential Auction dApp
+# Confidential Auction dApp
 
-Confidential multi-auction dApp for Arbitrum Sepolia using Solidity, Hardhat, Next.js 14, Tailwind CSS, Supabase metadata, and Fhenix CoFHE.
+Multi-auction dApp for Arbitrum Sepolia using Solidity, Hardhat, Next.js 14, Tailwind CSS, Supabase metadata, and Fhenix CoFHE.
 
-Buyers submit plaintext bid amounts to the contract. The contract immediately converts each bid to `euint64`, compares encrypted bids with CoFHE, and stores only encrypted highest-bid state until the seller closes the auction and a proof-backed reveal transaction settles the final result.
+The contract supports sealed-bid, English, and Dutch auctions. Sealed-bid auctions keep the highest bid and bidder in CoFHE encrypted state until the auction ends; anyone can publish the encrypted result handles after `endTime`, and anyone can submit the CoFHE decrypt results to finalize the winner.
 
 ## Prerequisites
 
 - Node.js 20+
 - pnpm 9+
 - MetaMask
-- Arbitrum Sepolia ETH from a faucet, for example `https://www.alchemy.com/faucets/arbitrum-sepolia`
+- Arbitrum Sepolia ETH
 - Supabase free-tier project
 
 ## Supabase Setup
@@ -17,9 +17,9 @@ Buyers submit plaintext bid amounts to the contract. The contract immediately co
 1. Create a Supabase project.
 2. Open the SQL editor.
 3. Run `database.sql` from the repository root.
-4. Copy the project URL and anon key into `frontend/.env.local` using `frontend/.env.local.example` as the template.
+4. Copy the project URL and anon key into `frontend/.env.local` using `frontend/.env.local.example`.
 
-The database stores auction metadata and bid transaction metadata only. Bid amounts are never stored in Supabase.
+Supabase stores auction metadata and bid transaction metadata only. Auction status, result, and bid comparison state live in the contract.
 
 ## Contract Setup
 
@@ -47,6 +47,8 @@ pnpm deploy:testnet
 
 The deploy script writes the deployed address and ABI to `frontend/lib/deployments.json`. Copy the deployed address into `frontend/.env.local` as `NEXT_PUBLIC_CONTRACT_ADDRESS`.
 
+The frontend also has `/deploy`, which can deploy the compiled contract from MetaMask and persist the address in browser local storage.
+
 ## Frontend Setup
 
 ```bash
@@ -65,20 +67,45 @@ NEXT_PUBLIC_CHAIN_ID=421614
 NEXT_PUBLIC_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
 ```
 
-## End-To-End Flow
+## Vercel Hobby Deployment
+
+Use a Vercel project rooted at `frontend`, not the repository root. Keep the default Next.js build settings:
+
+- Install command: `pnpm install --frozen-lockfile`
+- Build command: `pnpm build`
+- Output directory: leave as the Next.js default
+
+Set these environment variables in Vercel before deploying:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_CONTRACT_ADDRESS`
+- `NEXT_PUBLIC_CHAIN_ID=421614`
+- `NEXT_PUBLIC_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc`
+
+Do not commit `.env`, `.env.local`, private keys, build output, or TypeScript cache files. For GitHub Free, use a public repository if you want unlimited standard GitHub-hosted Actions minutes; private repositories have monthly included minutes and artifact storage limits.
+
+## Auction Flow
 
 1. Open the frontend and connect MetaMask on Arbitrum Sepolia.
-2. Create an auction from `/create`; the contract emits `AuctionCreated`, and Supabase stores only metadata.
-3. Open the auction page and place bids; the contract encrypts each plaintext bid on-chain with `FHE.asEuint64` and updates encrypted highest-bid state with `FHE.gt`, `FHE.max`, and `FHE.select`.
-4. The seller closes the auction from the detail page or with `pnpm hardhat close-auction --auction-id <id> --network arbSepolia`; the contract calls `FHE.allowPublic` on the highest bid and bidder handles.
-5. Reveal the winner from the detail page or with `pnpm hardhat reveal-winner --auction-id <id> --network arbSepolia`; the CoFHE SDK runs `decryptForTx(handle).withoutPermit().execute()` off-chain, and `revealWinner` publishes signed decrypt results on-chain.
+2. Create a sealed-bid, English, or Dutch auction from the Create Auction tab or `/create`.
+3. Bids are sent to `placeBid`.
+   - Sealed-bid: the contract converts the bid to `euint64` and updates encrypted highest-bid state.
+   - English: the contract tracks the public ascending highest bid.
+   - Dutch: the first bid meeting the current descending price finalizes the auction immediately.
+4. After `endTime`, anyone can call `finalizeAuction`.
+   - Sealed-bid: encrypted winner/bid handles are made public for CoFHE reveal.
+   - English/Dutch: public result state is finalized.
+5. For sealed-bid auctions, anyone can call `revealWinner` with CoFHE decrypt results and signatures.
 
 ## Hardhat Tasks
 
 ```bash
-pnpm hardhat create-auction --duration 3600 --network arbSepolia
+pnpm hardhat create-auction --duration 3600 --type sealed --start-price 1 --network arbSepolia
+pnpm hardhat create-auction --duration 3600 --type english --start-price 100 --network arbSepolia
+pnpm hardhat create-auction --duration 3600 --type dutch --start-price 1000 --reserve-price 200 --network arbSepolia
 pnpm hardhat place-bid --auction-id 1 --amount 100 --network arbSepolia
-pnpm hardhat close-auction --auction-id 1 --network arbSepolia
+pnpm hardhat finalize-auction --auction-id 1 --network arbSepolia
 pnpm hardhat reveal-winner --auction-id 1 --network arbSepolia
 ```
 
@@ -93,7 +120,7 @@ pnpm hardhat reveal-winner --auction-id 1 --network arbSepolia
 
 ## Privacy Notes
 
-- Bid amounts enter the transaction as plaintext integers and are encrypted by the contract with CoFHE.
-- The contract stores encrypted `euint64 highestBid` and encrypted `eaddress highestBidder` until settlement.
-- Supabase stores only metadata: auction details, bidder addresses, and transaction hashes.
-- The winning amount and winner address are written to Supabase only after on-chain reveal.
+- Bid amounts currently enter transactions as plaintext integers and are converted to CoFHE handles by the contract.
+- Sealed-bid auctions store encrypted `euint64 highestBid` and encrypted `eaddress highestBidder` until finalization publishes handles.
+- Supabase stores metadata: auction details, bidder addresses, and transaction hashes.
+- `verifyDecryptionProofPlaceholder` marks the future integration point for a ZK proof verifier around correct decryption.

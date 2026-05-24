@@ -52,7 +52,7 @@ async function createCofheClient(hre: any, signer: any) {
   return client;
 }
 
-task("reveal-winner", "Decrypt public auction handles and settle the winner")
+task("reveal-winner", "Decrypt finalized sealed-bid auction handles and settle the winner")
   .addParam("auctionId", "Contract auction id", undefined, types.string)
   .setAction(async ({ auctionId }, hre) => {
     const [signer] = await hre.ethers.getSigners();

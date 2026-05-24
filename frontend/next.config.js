@@ -20,6 +20,11 @@ const nextConfig = {
         crypto: false,
       };
     }
+    // Exclude heavy tfhe WASM packages from server bundle
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push("tfhe", "node-tfhe", "@cofhe/sdk");
+    }
     return config;
   },
 };

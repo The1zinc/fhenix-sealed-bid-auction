@@ -1,5 +1,6 @@
 "use client";
 
+import { BrowserProvider } from "ethers";
 import { useState } from "react";
 import { getContract } from "@/lib/contract";
 import {
@@ -8,34 +9,56 @@ import {
   initCofheClient,
   toBytes32Handle,
 } from "@/lib/fhe";
-import { supabase } from "@/lib/supabase";
 import { useWallet } from "./WalletConnect";
 
 type RevealWinnerProps = {
   contractAuctionId: number;
-  supabaseAuctionId: string;
   onRevealed?: () => void;
 };
 
-export default function RevealWinner({ contractAuctionId, supabaseAuctionId, onRevealed }: RevealWinnerProps) {
+function readableError(error: any) {
+  const message = error?.shortMessage || error?.reason || error?.message;
+  if (!message) {
+    return "Failed to reveal winner.";
+  }
+  if (message.includes("AuctionResultNotReady")) {
+    return "Finalize the sealed auction first to publish encrypted result handles.";
+  }
+
+  return message;
+}
+
+export default function RevealWinner({ contractAuctionId, onRevealed }: RevealWinnerProps) {
   const { provider, signer, connectWallet } = useWallet();
   const [isRevealing, setIsRevealing] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
   const [winningBid, setWinningBid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function getActiveWallet() {
+    if (provider && signer) {
+      return { activeProvider: provider, activeSigner: signer };
+    }
+
+    await connectWallet();
+
+    if (!window.ethereum) {
+      throw new Error("MetaMask is required.");
+    }
+
+    const activeProvider = new BrowserProvider(window.ethereum as any);
+    const activeSigner = await activeProvider.getSigner();
+    return { activeProvider, activeSigner };
+  }
+
   async function handleReveal() {
     setIsRevealing(true);
     setError(null);
 
     try {
-      if (!provider || !signer) {
-        await connectWallet();
-        throw new Error("Wallet connected. Click Reveal Winner again to sign the settlement transaction.");
-      }
-
-      const contract = getContract(signer);
-      const client = await initCofheClient(provider);
+      const { activeProvider, activeSigner } = await getActiveWallet();
+      const contract = getContract(activeSigner);
+      const client = await initCofheClient(activeProvider);
       const bidHandle = await contract.getHighestBidHandle(contractAuctionId);
       const bidderHandle = await contract.getHighestBidderHandle(contractAuctionId);
       const { bidResult, bidderResult } = await decryptAuctionResult(client, bidHandle, bidderHandle);
@@ -53,51 +76,78 @@ export default function RevealWinner({ contractAuctionId, supabaseAuctionId, onR
       );
       await tx.wait();
 
-      const { error: updateError } = await supabase
-        .from("auctions")
-        .update({
-          is_settled: true,
-          winning_bidder: winnerAddress,
-          winning_bid_display: bidDisplay,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", supabaseAuctionId);
-
-      if (updateError) {
-        throw updateError;
-      }
-
       setWinner(winnerAddress);
       setWinningBid(bidDisplay);
       onRevealed?.();
     } catch (revealError: any) {
-      setError(revealError?.message ?? "Failed to reveal winner.");
+      setError(readableError(revealError));
     } finally {
       setIsRevealing(false);
     }
   }
 
   return (
-    <div className="rounded-3xl border border-purple-200/20 bg-purple-300/[0.08] p-5">
-      <h3 className="text-lg font-semibold text-white">Reveal encrypted result</h3>
-      <p className="mt-2 text-sm leading-6 text-purple-100/80">
-        The seller has closed this auction. Decrypt the public CoFHE handles off-chain and submit the signed proof on-chain.
+    <div
+      className="rounded-2xl p-5"
+      style={{
+        background: "rgba(99, 102, 241, 0.06)",
+        border: "1px solid rgba(99, 102, 241, 0.15)",
+      }}
+    >
+      <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+        🏆 Reveal sealed result
+      </h3>
+      <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+        Decrypt the FHE-encrypted winner and bid amount on-chain.
       </p>
       <button
         type="button"
         onClick={handleReveal}
         disabled={isRevealing}
-        className="mt-4 w-full rounded-2xl bg-purple-300 px-5 py-3 font-bold text-slate-950 transition hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 w-full rounded-xl px-5 py-3 font-bold transition-all duration-200 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+        style={{
+          background: "#6366f1",
+          color: "#ffffff",
+          boxShadow: "0 4px 20px rgba(99, 102, 241, 0.3)",
+        }}
       >
-        {isRevealing ? "Decrypting and settling..." : "Reveal Winner"}
+        {isRevealing ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            Decrypting and settling...
+          </span>
+        ) : (
+          "Reveal Winner"
+        )}
       </button>
       {winner && winningBid ? (
-        <div className="mt-4 rounded-2xl bg-slate-950/60 p-4 text-sm text-slate-200">
-          <p>Winner: {winner}</p>
-          <p>Winning amount: {winningBid}</p>
+        <div
+          className="mt-4 rounded-xl p-4 text-sm"
+          style={{
+            background: "var(--success-bg)",
+            border: "1px solid var(--success-border)",
+          }}
+        >
+          <p className="break-all" style={{ color: "var(--success-text)" }}>
+            <strong>Winner:</strong> {winner}
+          </p>
+          <p className="mt-1" style={{ color: "var(--success-text)" }}>
+            <strong>Winning amount:</strong> {Number(winningBid).toLocaleString()}
+          </p>
         </div>
       ) : null}
-      {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
+      {error ? (
+        <p
+          className="mt-3 rounded-xl p-3 text-sm"
+          style={{
+            background: "var(--error-bg)",
+            border: "1px solid var(--error-border)",
+            color: "var(--error-text)",
+          }}
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

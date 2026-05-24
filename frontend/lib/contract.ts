@@ -1,133 +1,95 @@
-import { Contract, type ContractRunner, type InterfaceAbi } from "ethers";
+import { Contract, isAddress, type ContractRunner, type InterfaceAbi } from "ethers";
 import deployments from "./deployments.json";
-
-const DEFAULT_ABI = [
-  {
-    type: "function",
-    name: "createAuction",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "durationSeconds", type: "uint256" }],
-    outputs: [{ name: "auctionId", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "placeBid",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "auctionId", type: "uint256" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "closeAuction",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "auctionId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "revealWinner",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "auctionId", type: "uint256" },
-      { name: "bidCtHash", type: "bytes32" },
-      { name: "bidPlaintext", type: "uint64" },
-      { name: "bidSignature", type: "bytes" },
-      { name: "bidderCtHash", type: "bytes32" },
-      { name: "bidderPlaintext", type: "address" },
-      { name: "bidderSignature", type: "bytes" },
-    ],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "getAuctionInfo",
-    stateMutability: "view",
-    inputs: [{ name: "auctionId", type: "uint256" }],
-    outputs: [
-      { name: "seller", type: "address" },
-      { name: "endTime", type: "uint256" },
-      { name: "closed", type: "bool" },
-      { name: "settled", type: "bool" },
-      { name: "winningBid", type: "uint64" },
-      { name: "winningBidder", type: "address" },
-    ],
-  },
-  {
-    type: "function",
-    name: "getHighestBidHandle",
-    stateMutability: "view",
-    inputs: [{ name: "auctionId", type: "uint256" }],
-    outputs: [{ name: "", type: "bytes32" }],
-  },
-  {
-    type: "function",
-    name: "getHighestBidderHandle",
-    stateMutability: "view",
-    inputs: [{ name: "auctionId", type: "uint256" }],
-    outputs: [{ name: "", type: "bytes32" }],
-  },
-  {
-    type: "function",
-    name: "auctionCount",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "event",
-    name: "AuctionCreated",
-    anonymous: false,
-    inputs: [
-      { name: "auctionId", type: "uint256", indexed: true },
-      { name: "seller", type: "address", indexed: true },
-      { name: "endTime", type: "uint256", indexed: false },
-    ],
-  },
-  {
-    type: "event",
-    name: "BidPlaced",
-    anonymous: false,
-    inputs: [
-      { name: "auctionId", type: "uint256", indexed: true },
-      { name: "bidder", type: "address", indexed: true },
-    ],
-  },
-  {
-    type: "event",
-    name: "AuctionClosed",
-    anonymous: false,
-    inputs: [{ name: "auctionId", type: "uint256", indexed: true }],
-  },
-  {
-    type: "event",
-    name: "WinnerRevealed",
-    anonymous: false,
-    inputs: [
-      { name: "auctionId", type: "uint256", indexed: true },
-      { name: "winner", type: "address", indexed: true },
-      { name: "amount", type: "uint64", indexed: false },
-    ],
-  },
-] as const;
+import type { AuctionTypeSlug } from "./supabase";
 
 type Deployment = {
   address?: string;
   abi?: unknown[];
 };
 
+export type ContractAuctionStatus = "active" | "ended" | "finalized";
+
+export const AUCTION_TYPES: Record<AuctionTypeSlug, number> = {
+  sealed: 0,
+  english: 1,
+  dutch: 2,
+};
+
+export const AUCTION_TYPE_LABELS: Record<AuctionTypeSlug, string> = {
+  sealed: "Sealed-Bid",
+  english: "English",
+  dutch: "Dutch",
+};
+
+export const AUCTION_STATUS_LABELS: Record<ContractAuctionStatus, string> = {
+  active: "Active",
+  ended: "Ended",
+  finalized: "Finalized",
+};
+
 const deployment = deployments as Deployment;
 
-export const BLIND_AUCTION_ADDRESS =
-  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || deployment.address || "";
-export const BLIND_AUCTION_ABI: InterfaceAbi = (deployment.abi?.length ? deployment.abi : DEFAULT_ABI) as InterfaceAbi;
+const STATIC_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || deployment.address || "";
 
-export function getContract(runner: ContractRunner) {
-  if (!BLIND_AUCTION_ADDRESS || !BLIND_AUCTION_ADDRESS.startsWith("0x")) {
-    throw new Error("Missing NEXT_PUBLIC_CONTRACT_ADDRESS. Deploy the contract and update frontend/.env.local.");
+export const BLIND_AUCTION_ABI: InterfaceAbi = (deployment.abi ?? []) as InterfaceAbi;
+
+export function normalizeAuctionType(value: bigint | number | string): AuctionTypeSlug {
+  const numeric = Number(value);
+  if (numeric === AUCTION_TYPES.english) {
+    return "english";
+  }
+  if (numeric === AUCTION_TYPES.dutch) {
+    return "dutch";
   }
 
-  return new Contract(BLIND_AUCTION_ADDRESS, BLIND_AUCTION_ABI, runner);
+  return "sealed";
+}
+
+export function normalizeAuctionStatus(value: bigint | number | string): ContractAuctionStatus {
+  const numeric = Number(value);
+  if (numeric === 2) {
+    return "finalized";
+  }
+  if (numeric === 1) {
+    return "ended";
+  }
+
+  return "active";
+}
+
+/**
+ * Resolve the contract address at call time.
+ * Priority: localStorage (set by deploy page), env, deployments.json.
+ */
+export function getDeployedAddress(): string {
+  if (typeof window !== "undefined") {
+    const stored = window.localStorage.getItem("blindAuctionAddress");
+    if (stored && isAddress(stored)) {
+      return stored;
+    }
+  }
+
+  return isAddress(STATIC_ADDRESS) ? STATIC_ADDRESS : "";
+}
+
+export function setDeployedAddress(address: string) {
+  if (!isAddress(address)) {
+    throw new Error("Invalid contract address.");
+  }
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("blindAuctionAddress", address);
+  }
+}
+
+export function getContract(runner: ContractRunner) {
+  const address = getDeployedAddress();
+  if (!address || !address.startsWith("0x")) {
+    throw new Error("No contract deployed yet. Go to /deploy to deploy the BlindAuction contract.");
+  }
+  if (!deployment.abi?.length) {
+    throw new Error("BlindAuction ABI is missing. Rebuild the contracts and frontend deployment metadata.");
+  }
+
+  return new Contract(address, BLIND_AUCTION_ABI, runner);
 }

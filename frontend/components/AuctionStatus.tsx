@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AUCTION_STATUS_LABELS, type ContractAuctionStatus } from "@/lib/contract";
 
 type AuctionStatusProps = {
   endTime: number;
-  closed: boolean;
-  settled: boolean;
+  status: ContractAuctionStatus;
 };
 
 function getRemainingSeconds(endTime: number) {
@@ -27,7 +27,28 @@ function formatRemaining(totalSeconds: number) {
   return `${minutes}m ${seconds}s`;
 }
 
-export default function AuctionStatus({ endTime, closed, settled }: AuctionStatusProps) {
+const STATUS_STYLES: Record<ContractAuctionStatus, { bg: string; border: string; text: string; dot: string }> = {
+  active: {
+    bg: "rgba(16, 185, 129, 0.1)",
+    border: "rgba(16, 185, 129, 0.25)",
+    text: "#10b981",
+    dot: "#10b981",
+  },
+  ended: {
+    bg: "rgba(245, 158, 11, 0.1)",
+    border: "rgba(245, 158, 11, 0.25)",
+    text: "#f59e0b",
+    dot: "#f59e0b",
+  },
+  finalized: {
+    bg: "rgba(99, 102, 241, 0.1)",
+    border: "rgba(99, 102, 241, 0.25)",
+    text: "#6366f1",
+    dot: "#6366f1",
+  },
+};
+
+export default function AuctionStatus({ endTime, status }: AuctionStatusProps) {
   const [remaining, setRemaining] = useState(() => getRemainingSeconds(endTime));
 
   useEffect(() => {
@@ -36,20 +57,31 @@ export default function AuctionStatus({ endTime, closed, settled }: AuctionStatu
     return () => window.clearInterval(timer);
   }, [endTime]);
 
-  const status = settled ? "SETTLED" : closed ? "CLOSED" : "LIVE";
-  const statusClass = settled
-    ? "border-purple-300/50 bg-purple-400/15 text-purple-100"
-    : closed
-      ? "border-amber-300/50 bg-amber-400/15 text-amber-100"
-      : "border-emerald-300/50 bg-emerald-400/15 text-emerald-100";
+  const effectiveStatus: ContractAuctionStatus = status === "active" && remaining === 0 ? "ended" : status;
+  const styles = STATUS_STYLES[effectiveStatus];
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span className={`rounded-full border px-3 py-1 text-xs font-bold tracking-[0.2em] ${statusClass}`}>
-        {status}
+    <div className="flex flex-wrap items-center gap-2">
+      <span
+        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold uppercase"
+        style={{
+          background: styles.bg,
+          border: `1px solid ${styles.border}`,
+          color: styles.text,
+        }}
+      >
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${effectiveStatus === "active" ? "animate-pulse" : ""}`}
+          style={{ background: styles.dot }}
+        />
+        {AUCTION_STATUS_LABELS[effectiveStatus]}
       </span>
-      {!closed && !settled ? (
-        <span className="text-sm text-slate-300">{remaining > 0 ? `${formatRemaining(remaining)} remaining` : "Ended"}</span>
+      {effectiveStatus === "active" ? (
+        <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          {formatRemaining(remaining)} remaining
+        </span>
+      ) : effectiveStatus === "ended" ? (
+        <span className="text-sm" style={{ color: "var(--text-secondary)" }}>Awaiting finalization</span>
       ) : null}
     </div>
   );

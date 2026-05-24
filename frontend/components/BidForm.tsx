@@ -1,23 +1,80 @@
 "use client";
 
+import { BrowserProvider } from "ethers";
 import { FormEvent, useState } from "react";
-import { getContract } from "@/lib/contract";
+import { AUCTION_TYPE_LABELS } from "@/lib/contract";
 import { encryptBid } from "@/lib/fhe";
-import { supabase } from "@/lib/supabase";
+import { getContract } from "@/lib/contract";
+import { isSupabaseConfigured, supabase, type AuctionTypeSlug } from "@/lib/supabase";
 import { useWallet } from "./WalletConnect";
 
 type BidFormProps = {
   contractAuctionId: number;
   supabaseAuctionId: string;
+  auctionType: AuctionTypeSlug;
+  currentBid?: string;
+  currentDutchPrice?: string;
+  startPrice?: string;
   onBidPlaced?: () => void;
 };
 
-export default function BidForm({ contractAuctionId, supabaseAuctionId, onBidPlaced }: BidFormProps) {
+function readableError(error: any) {
+  const message = error?.shortMessage || error?.reason || error?.message;
+  if (!message) {
+    return "Failed to place bid.";
+  }
+  if (message.includes("BidTooLow")) {
+    return "Bid is below the required price.";
+  }
+  if (message.includes("AuctionHasEnded") || message.includes("AuctionNotActive")) {
+    return "This auction is no longer accepting bids.";
+  }
+
+  return message;
+}
+
+function amountLabel(auctionType: AuctionTypeSlug) {
+  if (auctionType === "dutch") {
+    return "Maximum amount";
+  }
+  if (auctionType === "english") {
+    return "Bid amount";
+  }
+
+  return "Sealed bid amount";
+}
+
+export default function BidForm({
+  contractAuctionId,
+  supabaseAuctionId,
+  auctionType,
+  currentBid,
+  currentDutchPrice,
+  startPrice,
+  onBidPlaced,
+}: BidFormProps) {
   const { address, signer, connectWallet } = useWallet();
   const [amount, setAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function getActiveSigner() {
+    if (signer && address) {
+      return { activeSigner: signer, activeAddress: address };
+    }
+
+    await connectWallet();
+
+    if (!window.ethereum) {
+      throw new Error("MetaMask is required.");
+    }
+
+    const provider = new BrowserProvider(window.ethereum as any);
+    const activeSigner = await provider.getSigner();
+    const activeAddress = await activeSigner.getAddress();
+    return { activeSigner, activeAddress };
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,45 +83,79 @@ export default function BidForm({ contractAuctionId, supabaseAuctionId, onBidPla
     setMessage(null);
 
     try {
-      if (!signer || !address) {
-        await connectWallet();
-        throw new Error("Wallet connected. Submit the bid again to sign the transaction.");
-      }
-
-      const numericAmount = Number(amount);
+      const { activeSigner, activeAddress } = await getActiveSigner();
+      const submittedAmount = auctionType === "dutch" && !amount ? currentDutchPrice ?? "0" : amount;
+      const numericAmount = Number(submittedAmount);
       const encryptedOnChainAmount = encryptBid(numericAmount);
-      const contract = getContract(signer);
+      const contract = getContract(activeSigner);
       const tx = await contract.placeBid(contractAuctionId, encryptedOnChainAmount);
       const receipt = await tx.wait();
 
-      const { error: insertError } = await supabase.from("bids").insert({
-        auction_id: supabaseAuctionId,
-        bidder_address: address,
-        tx_hash: receipt?.hash ?? tx.hash,
-      });
+      if (isSupabaseConfigured && supabase) {
+        const { error: insertError } = await supabase.from("bids").insert({
+          auction_id: supabaseAuctionId,
+          bidder_address: activeAddress,
+          tx_hash: receipt?.hash ?? tx.hash,
+        });
 
-      if (insertError) {
-        throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       setAmount("");
-      setMessage("Bid submitted and encrypted on-chain.");
+      setMessage(
+        auctionType === "dutch"
+          ? "Dutch auction accepted and finalized."
+          : auctionType === "english"
+            ? "Bid submitted."
+            : "Sealed bid submitted.",
+      );
       onBidPlaced?.();
     } catch (submitError: any) {
-      setError(submitError?.message ?? "Failed to place bid.");
+      setError(readableError(submitError));
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  const referencePrice =
+    auctionType === "dutch"
+      ? currentDutchPrice
+      : auctionType === "english"
+        ? currentBid && currentBid !== "0"
+          ? currentBid
+          : startPrice
+        : startPrice;
+
   return (
-    <form onSubmit={handleSubmit} className="rounded-3xl border border-cyan-200/15 bg-cyan-200/[0.06] p-5">
-      <h3 className="text-lg font-semibold text-white">Place a confidential bid</h3>
-      <p className="mt-2 text-sm leading-6 text-cyan-100/80">
-        Your bid amount is encrypted on-chain. No one can see your bid or the current highest bid.
-      </p>
-      <label className="mt-5 block text-sm font-medium text-slate-200" htmlFor="bid-amount">
-        Bid amount (whole auction units)
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-2xl p-5"
+      style={{
+        background: "var(--accent-subtle)",
+        border: "1px solid var(--card-border)",
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+          {AUCTION_TYPE_LABELS[auctionType]} bid
+        </h3>
+        {referencePrice && referencePrice !== "0" ? (
+          <span
+            className="rounded-lg px-2.5 py-1 text-xs font-bold"
+            style={{
+              background: "var(--badge-bg)",
+              color: "var(--text-brand)",
+            }}
+          >
+            {auctionType === "dutch" ? "Price" : "Reference"}: {Number(referencePrice).toLocaleString()}
+          </span>
+        ) : null}
+      </div>
+
+      <label className="mt-5 block text-sm font-semibold" style={{ color: "var(--text-secondary)" }} htmlFor="bid-amount">
+        {amountLabel(auctionType)}
       </label>
       <input
         id="bid-amount"
@@ -73,19 +164,62 @@ export default function BidForm({ contractAuctionId, supabaseAuctionId, onBidPla
         step="1"
         value={amount}
         onChange={(event) => setAmount(event.target.value)}
-        required
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300"
-        placeholder="100"
+        required={auctionType !== "dutch"}
+        className="mt-2 w-full rounded-xl px-4 py-3 outline-none transition-all duration-200"
+        style={{
+          background: "var(--input-bg)",
+          border: "1px solid var(--input-border)",
+          color: "var(--input-text)",
+        }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = "var(--input-focus-border)"; }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = "var(--input-border)"; }}
+        placeholder={auctionType === "dutch" ? currentDutchPrice ?? "100" : "100"}
       />
       <button
         type="submit"
         disabled={isSubmitting}
-        className="mt-4 w-full rounded-2xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 w-full rounded-xl px-5 py-3 font-bold transition-all duration-200 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+        style={{
+          background: "var(--accent)",
+          color: "var(--accent-text)",
+          boxShadow: "0 4px 20px rgba(6, 148, 255, 0.25)",
+        }}
       >
-        {isSubmitting ? "Encrypting on-chain..." : "Submit Bid"}
+        {isSubmitting ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            Submitting...
+          </span>
+        ) : auctionType === "dutch" ? (
+          "Accept Current Price"
+        ) : (
+          "Submit Bid"
+        )}
       </button>
-      {message ? <p className="mt-3 text-sm text-emerald-300">{message}</p> : null}
-      {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
+      {message ? (
+        <p
+          className="mt-3 rounded-xl p-3 text-sm"
+          style={{
+            background: "var(--success-bg)",
+            border: "1px solid var(--success-border)",
+            color: "var(--success-text)",
+          }}
+        >
+          ✅ {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          className="mt-3 rounded-xl p-3 text-sm"
+          style={{
+            background: "var(--error-bg)",
+            border: "1px solid var(--error-border)",
+            color: "var(--error-text)",
+          }}
+        >
+          {error}
+        </p>
+      ) : null}
     </form>
   );
 }

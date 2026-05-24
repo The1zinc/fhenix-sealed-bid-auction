@@ -8,3 +8,4 @@ typechain-types/
 coverage/
 coverage.json
 *.log
+*.tsbuildinfo

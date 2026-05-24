@@ -56,22 +56,28 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         params: [{ chainId: ARBITRUM_SEPOLIA_CHAIN_HEX }],
       });
     } catch (switchError: any) {
-      if (switchError?.code !== 4902) {
+      // Chain not found (4902) or unrecognized; try adding it.
+      if (switchError?.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: ARBITRUM_SEPOLIA_CHAIN_HEX,
+                chainName: "Arbitrum Sepolia",
+                nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+                rpcUrls: ["https://sepolia-rollup.arbitrum.io/rpc"],
+                blockExplorerUrls: ["https://sepolia.arbiscan.io"],
+              },
+            ],
+          });
+        } catch (addError: any) {
+          throw addError;
+        }
+      } else {
+        // User rejected the switch (4001) or other error
         throw switchError;
       }
-
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: ARBITRUM_SEPOLIA_CHAIN_HEX,
-            chainName: "Arbitrum Sepolia",
-            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-            rpcUrls: ["https://sepolia-rollup.arbitrum.io/rpc"],
-            blockExplorerUrls: ["https://sepolia.arbiscan.io"],
-          },
-        ],
-      });
     }
   }
 
@@ -185,12 +191,40 @@ export default function WalletConnect() {
         type="button"
         onClick={connectWallet}
         disabled={isConnecting}
-        className="rounded-full border border-cyan-300/50 bg-cyan-300/10 px-5 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-200 hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-300 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+        style={{
+          border: "1px solid var(--border-default)",
+          background: address ? "var(--success-bg)" : "var(--accent)",
+          color: address ? "var(--success-text)" : "var(--accent-text)",
+        }}
       >
-        {isConnecting ? "Connecting..." : address ? truncateAddress(address) : "Connect Wallet"}
+        {address ? (
+          <>
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: "#10b981", boxShadow: "0 0 8px rgba(16,185,129,0.5)" }}
+            />
+            {truncateAddress(address)}
+          </>
+        ) : isConnecting ? (
+          <>
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            Connecting...
+          </>
+        ) : (
+          "Connect Wallet"
+        )}
       </button>
-      {wrongNetwork ? <span className="text-xs text-amber-300">Switch to Arbitrum Sepolia</span> : null}
-      {error ? <span className="max-w-xs text-right text-xs text-red-300">{error}</span> : null}
+      {wrongNetwork ? (
+        <span className="text-xs font-medium" style={{ color: "var(--warning-text)" }}>
+          Switch to Arbitrum Sepolia
+        </span>
+      ) : null}
+      {error ? (
+        <span className="max-w-xs text-right text-xs" style={{ color: "var(--error-text)" }}>
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

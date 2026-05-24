@@ -1,117 +1,712 @@
-{
-  "network": "arbSepolia",
-  "chainId": 421614,
-  "address": "",
-  "abi": [
-    {
-      "type": "function",
-      "name": "createAuction",
-      "stateMutability": "nonpayable",
-      "inputs": [{ "name": "durationSeconds", "type": "uint256" }],
-      "outputs": [{ "name": "auctionId", "type": "uint256" }]
-    },
-    {
-      "type": "function",
-      "name": "placeBid",
-      "stateMutability": "nonpayable",
-      "inputs": [
-        { "name": "auctionId", "type": "uint256" },
-        { "name": "amount", "type": "uint256" }
-      ],
-      "outputs": []
-    },
-    {
-      "type": "function",
-      "name": "closeAuction",
-      "stateMutability": "nonpayable",
-      "inputs": [{ "name": "auctionId", "type": "uint256" }],
-      "outputs": []
-    },
-    {
-      "type": "function",
-      "name": "revealWinner",
-      "stateMutability": "nonpayable",
-      "inputs": [
-        { "name": "auctionId", "type": "uint256" },
-        { "name": "bidCtHash", "type": "bytes32" },
-        { "name": "bidPlaintext", "type": "uint64" },
-        { "name": "bidSignature", "type": "bytes" },
-        { "name": "bidderCtHash", "type": "bytes32" },
-        { "name": "bidderPlaintext", "type": "address" },
-        { "name": "bidderSignature", "type": "bytes" }
-      ],
-      "outputs": []
-    },
-    {
-      "type": "function",
-      "name": "getAuctionInfo",
-      "stateMutability": "view",
-      "inputs": [{ "name": "auctionId", "type": "uint256" }],
-      "outputs": [
-        { "name": "seller", "type": "address" },
-        { "name": "endTime", "type": "uint256" },
-        { "name": "closed", "type": "bool" },
-        { "name": "settled", "type": "bool" },
-        { "name": "winningBid", "type": "uint64" },
-        { "name": "winningBidder", "type": "address" }
-      ]
-    },
-    {
-      "type": "function",
-      "name": "getHighestBidHandle",
-      "stateMutability": "view",
-      "inputs": [{ "name": "auctionId", "type": "uint256" }],
-      "outputs": [{ "name": "", "type": "bytes32" }]
-    },
-    {
-      "type": "function",
-      "name": "getHighestBidderHandle",
-      "stateMutability": "view",
-      "inputs": [{ "name": "auctionId", "type": "uint256" }],
-      "outputs": [{ "name": "", "type": "bytes32" }]
-    },
-    {
-      "type": "function",
-      "name": "auctionCount",
-      "stateMutability": "view",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "uint256" }]
-    },
-    {
-      "type": "event",
-      "name": "AuctionCreated",
-      "anonymous": false,
-      "inputs": [
-        { "name": "auctionId", "type": "uint256", "indexed": true },
-        { "name": "seller", "type": "address", "indexed": true },
-        { "name": "endTime", "type": "uint256", "indexed": false }
-      ]
-    },
-    {
-      "type": "event",
-      "name": "BidPlaced",
-      "anonymous": false,
-      "inputs": [
-        { "name": "auctionId", "type": "uint256", "indexed": true },
-        { "name": "bidder", "type": "address", "indexed": true }
-      ]
-    },
-    {
-      "type": "event",
-      "name": "AuctionClosed",
-      "anonymous": false,
-      "inputs": [{ "name": "auctionId", "type": "uint256", "indexed": true }]
-    },
-    {
-      "type": "event",
-      "name": "WinnerRevealed",
-      "anonymous": false,
-      "inputs": [
-        { "name": "auctionId", "type": "uint256", "indexed": true },
-        { "name": "winner", "type": "address", "indexed": true },
-        { "name": "amount", "type": "uint64", "indexed": false }
-      ]
-    }
-  ],
-  "deployedAt": null
+﻿{
+    "network":  "arbSepolia",
+    "chainId":  421614,
+    "address":  "",
+    "abi":  [
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionAlreadyFinalized",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionDoesNotExist",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionEndedAlready",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionHasEnded",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionNotActive",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionNotEnded",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "AuctionResultNotReady",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "amount",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "BidTooLarge",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "submitted",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "required",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "BidTooLow",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+
+                               ],
+                    "name":  "InvalidDecryptHandle",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+
+                               ],
+                    "name":  "InvalidDuration",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+
+                               ],
+                    "name":  "InvalidPriceConfig",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "RevealOnlySealedBid",
+                    "type":  "error"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "int32",
+                                       "name":  "value",
+                                       "type":  "int32"
+                                   }
+                               ],
+                    "name":  "SecurityZoneOutOfBounds",
+                    "type":  "error"
+                },
+                {
+                    "anonymous":  false,
+                    "inputs":  [
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "address",
+                                       "name":  "seller",
+                                       "type":  "address"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "enum BlindAuction.AuctionType",
+                                       "name":  "auctionType",
+                                       "type":  "uint8"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint256",
+                                       "name":  "startTime",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint256",
+                                       "name":  "endTime",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint64",
+                                       "name":  "startPrice",
+                                       "type":  "uint64"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint64",
+                                       "name":  "reservePrice",
+                                       "type":  "uint64"
+                                   }
+                               ],
+                    "name":  "AuctionCreated",
+                    "type":  "event"
+                },
+                {
+                    "anonymous":  false,
+                    "inputs":  [
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "enum BlindAuction.AuctionType",
+                                       "name":  "auctionType",
+                                       "type":  "uint8"
+                                   }
+                               ],
+                    "name":  "AuctionEnded",
+                    "type":  "event"
+                },
+                {
+                    "anonymous":  false,
+                    "inputs":  [
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "address",
+                                       "name":  "winner",
+                                       "type":  "address"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint64",
+                                       "name":  "amount",
+                                       "type":  "uint64"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "enum BlindAuction.AuctionType",
+                                       "name":  "auctionType",
+                                       "type":  "uint8"
+                                   }
+                               ],
+                    "name":  "AuctionFinalized",
+                    "type":  "event"
+                },
+                {
+                    "anonymous":  false,
+                    "inputs":  [
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "address",
+                                       "name":  "bidder",
+                                       "type":  "address"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "enum BlindAuction.AuctionType",
+                                       "name":  "auctionType",
+                                       "type":  "uint8"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint64",
+                                       "name":  "publicAmount",
+                                       "type":  "uint64"
+                                   }
+                               ],
+                    "name":  "BidPlaced",
+                    "type":  "event"
+                },
+                {
+                    "anonymous":  false,
+                    "inputs":  [
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "bytes32",
+                                       "name":  "bidHandle",
+                                       "type":  "bytes32"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "bytes32",
+                                       "name":  "bidderHandle",
+                                       "type":  "bytes32"
+                                   }
+                               ],
+                    "name":  "EncryptedResultReady",
+                    "type":  "event"
+                },
+                {
+                    "anonymous":  false,
+                    "inputs":  [
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "indexed":  true,
+                                       "internalType":  "address",
+                                       "name":  "winner",
+                                       "type":  "address"
+                                   },
+                                   {
+                                       "indexed":  false,
+                                       "internalType":  "uint64",
+                                       "name":  "amount",
+                                       "type":  "uint64"
+                                   }
+                               ],
+                    "name":  "WinnerRevealed",
+                    "type":  "event"
+                },
+                {
+                    "inputs":  [
+
+                               ],
+                    "name":  "auctionCount",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "uint256",
+                                        "name":  "",
+                                        "type":  "uint256"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "auctions",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "address",
+                                        "name":  "seller",
+                                        "type":  "address"
+                                    },
+                                    {
+                                        "internalType":  "enum BlindAuction.AuctionType",
+                                        "name":  "auctionType",
+                                        "type":  "uint8"
+                                    },
+                                    {
+                                        "internalType":  "enum BlindAuction.AuctionStatus",
+                                        "name":  "status",
+                                        "type":  "uint8"
+                                    },
+                                    {
+                                        "internalType":  "euint64",
+                                        "name":  "highestBid",
+                                        "type":  "bytes32"
+                                    },
+                                    {
+                                        "internalType":  "eaddress",
+                                        "name":  "highestBidder",
+                                        "type":  "bytes32"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "currentBid",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "address",
+                                        "name":  "currentBidder",
+                                        "type":  "address"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "winningBid",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "address",
+                                        "name":  "winningBidder",
+                                        "type":  "address"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "startPrice",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "reservePrice",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "uint256",
+                                        "name":  "startTime",
+                                        "type":  "uint256"
+                                    },
+                                    {
+                                        "internalType":  "uint256",
+                                        "name":  "endTime",
+                                        "type":  "uint256"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "durationSeconds",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "internalType":  "enum BlindAuction.AuctionType",
+                                       "name":  "auctionType",
+                                       "type":  "uint8"
+                                   },
+                                   {
+                                       "internalType":  "uint64",
+                                       "name":  "startPrice",
+                                       "type":  "uint64"
+                                   },
+                                   {
+                                       "internalType":  "uint64",
+                                       "name":  "reservePrice",
+                                       "type":  "uint64"
+                                   }
+                               ],
+                    "name":  "createAuction",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "uint256",
+                                        "name":  "auctionId",
+                                        "type":  "uint256"
+                                    }
+                                ],
+                    "stateMutability":  "nonpayable",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "currentDutchPrice",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "",
+                                        "type":  "uint64"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "finalizeAuction",
+                    "outputs":  [
+
+                                ],
+                    "stateMutability":  "nonpayable",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "getAuctionInfo",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "address",
+                                        "name":  "seller",
+                                        "type":  "address"
+                                    },
+                                    {
+                                        "internalType":  "enum BlindAuction.AuctionType",
+                                        "name":  "auctionType",
+                                        "type":  "uint8"
+                                    },
+                                    {
+                                        "internalType":  "enum BlindAuction.AuctionStatus",
+                                        "name":  "status",
+                                        "type":  "uint8"
+                                    },
+                                    {
+                                        "internalType":  "uint256",
+                                        "name":  "startTime",
+                                        "type":  "uint256"
+                                    },
+                                    {
+                                        "internalType":  "uint256",
+                                        "name":  "endTime",
+                                        "type":  "uint256"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "startPrice",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "reservePrice",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "currentBid",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "address",
+                                        "name":  "currentBidder",
+                                        "type":  "address"
+                                    },
+                                    {
+                                        "internalType":  "uint64",
+                                        "name":  "winningBid",
+                                        "type":  "uint64"
+                                    },
+                                    {
+                                        "internalType":  "address",
+                                        "name":  "winningBidder",
+                                        "type":  "address"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "getHighestBidHandle",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "euint64",
+                                        "name":  "",
+                                        "type":  "bytes32"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "getHighestBidderHandle",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "eaddress",
+                                        "name":  "",
+                                        "type":  "bytes32"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "isEncryptedResultReady",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "bool",
+                                        "name":  "",
+                                        "type":  "bool"
+                                    }
+                                ],
+                    "stateMutability":  "view",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "amount",
+                                       "type":  "uint256"
+                                   }
+                               ],
+                    "name":  "placeBid",
+                    "outputs":  [
+
+                                ],
+                    "stateMutability":  "nonpayable",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "internalType":  "euint64",
+                                       "name":  "bidCtHash",
+                                       "type":  "bytes32"
+                                   },
+                                   {
+                                       "internalType":  "uint64",
+                                       "name":  "bidPlaintext",
+                                       "type":  "uint64"
+                                   },
+                                   {
+                                       "internalType":  "bytes",
+                                       "name":  "bidSignature",
+                                       "type":  "bytes"
+                                   },
+                                   {
+                                       "internalType":  "eaddress",
+                                       "name":  "bidderCtHash",
+                                       "type":  "bytes32"
+                                   },
+                                   {
+                                       "internalType":  "address",
+                                       "name":  "bidderPlaintext",
+                                       "type":  "address"
+                                   },
+                                   {
+                                       "internalType":  "bytes",
+                                       "name":  "bidderSignature",
+                                       "type":  "bytes"
+                                   }
+                               ],
+                    "name":  "revealWinner",
+                    "outputs":  [
+
+                                ],
+                    "stateMutability":  "nonpayable",
+                    "type":  "function"
+                },
+                {
+                    "inputs":  [
+                                   {
+                                       "internalType":  "uint256",
+                                       "name":  "auctionId",
+                                       "type":  "uint256"
+                                   },
+                                   {
+                                       "internalType":  "bytes",
+                                       "name":  "proof",
+                                       "type":  "bytes"
+                                   }
+                               ],
+                    "name":  "verifyDecryptionProofPlaceholder",
+                    "outputs":  [
+                                    {
+                                        "internalType":  "bool",
+                                        "name":  "verified",
+                                        "type":  "bool"
+                                    }
+                                ],
+                    "stateMutability":  "pure",
+                    "type":  "function"
+                }
+            ],
+    "deployedAt":  null
 }
