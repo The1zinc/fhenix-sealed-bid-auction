@@ -15,12 +15,12 @@ function fallbackStatus(auction: AuctionRow): ContractAuctionStatus {
   return Date.now() >= new Date(auction.end_time).getTime() ? "ended" : "active";
 }
 
-function formatAmount(value?: string | number | null) {
+function formatAmount(value?: string | number | null, tokenUnit?: string) {
   if (value === undefined || value === null || value === "" || value === "0") {
     return "Not set";
   }
 
-  return Number(value).toLocaleString();
+  return `${Number(value).toLocaleString()} ${tokenUnit || "USDC"}`;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -40,12 +40,13 @@ export default function AuctionCard({ auction, onChain }: AuctionCardProps) {
   const description = auction.description || "No description provided.";
   const auctionType = onChain?.auctionType ?? auction.auction_type ?? "sealed";
   const status = onChain?.status ?? fallbackStatus(auction);
+  const tokenUnit = auction.token_unit || "USDC";
   const priceLabel =
     auctionType === "dutch"
-      ? `Current: ${formatAmount(onChain?.currentDutchPrice ?? onChain?.currentBid ?? auction.start_price)}`
+      ? `Current: ${formatAmount(onChain?.currentDutchPrice ?? onChain?.currentBid ?? auction.start_price, tokenUnit)}`
       : auctionType === "english"
-        ? `Highest: ${formatAmount(onChain?.currentBid)}`
-        : `Minimum: ${formatAmount(auction.start_price)}`;
+        ? `Highest: ${formatAmount(onChain?.currentBid, tokenUnit)}`
+        : `Minimum: ${formatAmount(auction.start_price, tokenUnit)}`;
 
   return (
     <Link

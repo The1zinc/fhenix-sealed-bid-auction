@@ -15,6 +15,7 @@ type BidFormProps = {
   currentBid?: string;
   currentDutchPrice?: string;
   startPrice?: string;
+  tokenUnit?: string;
   onBidPlaced?: () => void;
 };
 
@@ -33,15 +34,15 @@ function readableError(error: any) {
   return message;
 }
 
-function amountLabel(auctionType: AuctionTypeSlug) {
+function amountLabel(auctionType: AuctionTypeSlug, tokenUnit: string = "USDC") {
   if (auctionType === "dutch") {
-    return "Maximum amount";
+    return `Maximum amount (${tokenUnit})`;
   }
   if (auctionType === "english") {
-    return "Bid amount";
+    return `Bid amount (${tokenUnit})`;
   }
 
-  return "Sealed bid amount";
+  return `Sealed bid amount (${tokenUnit})`;
 }
 
 export default function BidForm({
@@ -51,6 +52,7 @@ export default function BidForm({
   currentBid,
   currentDutchPrice,
   startPrice,
+  tokenUnit = "USDC",
   onBidPlaced,
 }: BidFormProps) {
   const { address, signer, connectWallet } = useWallet();
@@ -149,13 +151,13 @@ export default function BidForm({
               color: "var(--text-brand)",
             }}
           >
-            {auctionType === "dutch" ? "Price" : "Reference"}: {Number(referencePrice).toLocaleString()}
+            {auctionType === "dutch" ? "Price" : "Reference"}: {Number(referencePrice).toLocaleString()} {tokenUnit}
           </span>
         ) : null}
       </div>
 
       <label className="mt-5 block text-sm font-semibold" style={{ color: "var(--text-secondary)" }} htmlFor="bid-amount">
-        {amountLabel(auctionType)}
+        {amountLabel(auctionType, tokenUnit)}
       </label>
       <input
         id="bid-amount"

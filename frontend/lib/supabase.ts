@@ -13,6 +13,7 @@ export type AuctionRow = {
   image_url: string | null;
   start_price: number | string | null;
   reserve_price: number | string | null;
+  token_unit: string;
   end_time: string;
   created_at: string | null;
   updated_at: string | null;
@@ -27,6 +28,7 @@ export type AuctionInsert = {
   image_url?: string | null;
   start_price?: number;
   reserve_price?: number;
+  token_unit?: string;
   end_time: string;
 };
 
@@ -51,6 +53,11 @@ export type BidInsert = {
 // Global reactive fallback state
 export let isUsingLocalStorageFallback = true;
 export const isSupabaseConfigured = true;
+
+let resolveDbStatus: (value: boolean) => void = () => {};
+export const dbStatusPromise = new Promise<boolean>((resolve) => {
+  resolveDbStatus = resolve;
+});
 
 // 1. LocalStorage Query Builder & Client (original fallback implementation)
 class LocalStorageQueryBuilder {
@@ -271,13 +278,67 @@ class ApiQueryBuilder {
   }
 }
 
+class DeferredQueryBuilder {
+  private table: string;
+  private chain: Array<{ method: string; args: any[] }> = [];
+
+  constructor(table: string) {
+    this.table = table;
+  }
+
+  select(...args: any[]) {
+    this.chain.push({ method: "select", args });
+    return this;
+  }
+
+  eq(...args: any[]) {
+    this.chain.push({ method: "eq", args });
+    return this;
+  }
+
+  order(...args: any[]) {
+    this.chain.push({ method: "order", args });
+    return this;
+  }
+
+  single(...args: any[]) {
+    this.chain.push({ method: "single", args });
+    return this;
+  }
+
+  insert(...args: any[]) {
+    this.chain.push({ method: "insert", args });
+    return this;
+  }
+
+  async then(onfulfilled: (value: any) => any, onrejected?: (reason: any) => any) {
+    try {
+      await dbStatusPromise;
+      let builder: any;
+      if (typeof window === "undefined" || isUsingLocalStorageFallback) {
+        builder = new LocalStorageQueryBuilder(this.table);
+      } else {
+        builder = new ApiQueryBuilder(this.table);
+      }
+
+      for (const call of this.chain) {
+        builder = builder[call.method](...call.args);
+      }
+
+      const result = await builder;
+      return onfulfilled(result);
+    } catch (err) {
+      if (onrejected) {
+        return onrejected(err);
+      }
+      throw err;
+    }
+  }
+}
+
 class UnifiedDatabaseClient {
   from(table: string) {
-    // If not browser or definitely fallback, return LocalStorage
-    if (typeof window === "undefined" || isUsingLocalStorageFallback) {
-      return new LocalStorageQueryBuilder(table);
-    }
-    return new ApiQueryBuilder(table);
+    return new DeferredQueryBuilder(table);
   }
 }
 
@@ -291,9 +352,14 @@ if (typeof window !== "undefined") {
     .then((data) => {
       isUsingLocalStorageFallback = !data.configured;
       console.log(`[Database Client] Mode: ${isUsingLocalStorageFallback ? "LocalStorage (Fallback)" : "Neon Postgres (Connected)"}`);
+      resolveDbStatus(isUsingLocalStorageFallback);
     })
     .catch((err) => {
       console.error("[Database Client] Failed to fetch db-status, using LocalStorage fallback:", err);
       isUsingLocalStorageFallback = true;
+      resolveDbStatus(true);
     });
+} else {
+  isUsingLocalStorageFallback = true;
+  resolveDbStatus(true);
 }

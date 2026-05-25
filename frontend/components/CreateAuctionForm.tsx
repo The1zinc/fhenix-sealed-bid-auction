@@ -65,6 +65,7 @@ export default function CreateAuctionForm() {
   const [durationHours, setDurationHours] = useState("24");
   const [startPrice, setStartPrice] = useState("1");
   const [reservePrice, setReservePrice] = useState("0");
+  const [tokenUnit, setTokenUnit] = useState("USDC");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,6 +152,7 @@ export default function CreateAuctionForm() {
           image_url: imageUrl || null,
           start_price: Number(parsedStart),
           reserve_price: Number(parsedReserve),
+          token_unit: tokenUnit,
           end_time: new Date(Number(created.endTime) * 1000).toISOString(),
         })
         .select("*")
@@ -293,7 +295,7 @@ export default function CreateAuctionForm() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div>
           <label className="block text-sm font-bold" style={{ color: "var(--text-primary)" }} htmlFor="startPrice">
             {auctionType === "dutch" ? "Start price" : "Minimum bid"}
@@ -333,6 +335,29 @@ export default function CreateAuctionForm() {
             />
           </div>
         ) : null}
+
+        <div className={auctionType === "dutch" ? "" : "sm:col-span-2"}>
+          <label className="block text-sm font-bold" style={{ color: "var(--text-primary)" }} htmlFor="tokenUnit">
+            Token unit
+          </label>
+          <select
+            id="tokenUnit"
+            value={tokenUnit}
+            onChange={(event) => setTokenUnit(event.target.value)}
+            required
+            className="mt-2 w-full rounded-xl px-4 py-3 outline-none transition-all duration-200"
+            style={{
+              ...inputStyle,
+              cursor: "pointer",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--input-focus-border)"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--input-border)"; }}
+          >
+            <option value="USDC">USDC (USD Coin)</option>
+            <option value="ETH">ETH (Ethereum)</option>
+            <option value="tFHE">tFHE (Fhenix)</option>
+          </select>
+        </div>
       </div>
 
       <button

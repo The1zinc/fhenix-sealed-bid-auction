@@ -12,6 +12,7 @@ CREATE TABLE auctions (
     image_url           TEXT,
     start_price         BIGINT DEFAULT 0,
     reserve_price       BIGINT DEFAULT 0,
+    token_unit          TEXT NOT NULL DEFAULT 'USDC',
     end_time            TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       image_url,
       start_price,
       reserve_price,
+      token_unit,
       end_time,
     } = body;
 
@@ -62,11 +63,11 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       INSERT INTO auctions (
         contract_auction_id, seller_address, auction_type, title,
-        description, image_url, start_price, reserve_price, end_time
+        description, image_url, start_price, reserve_price, token_unit, end_time
       ) VALUES (
         ${contract_auction_id}, ${seller_address}, ${auction_type}, ${title},
         ${description ?? null}, ${image_url ?? null},
-        ${start_price ?? 0}, ${reserve_price ?? 0}, ${end_time}
+        ${start_price ?? 0}, ${reserve_price ?? 0}, ${token_unit ?? 'USDC'}, ${end_time}
       )
       RETURNING *
     `;

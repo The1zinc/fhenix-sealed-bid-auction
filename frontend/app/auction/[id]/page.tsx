@@ -22,15 +22,16 @@ function fallbackStatus(auction: AuctionRow): ContractAuctionStatus {
   return Date.now() >= new Date(auction.end_time).getTime() ? "ended" : "active";
 }
 
-function formatAmount(value?: string | number | null) {
+function formatAmount(value?: string | number | null, tokenUnit?: string) {
   if (value === undefined || value === null || value === "" || value === "0") {
     return "None";
   }
 
+  const suffix = tokenUnit ? ` ${tokenUnit}` : " USDC";
   try {
-    return BigInt(value).toLocaleString();
+    return BigInt(value).toLocaleString() + suffix;
   } catch {
-    return String(value);
+    return String(value) + suffix;
   }
 }
 
@@ -356,17 +357,17 @@ export default function AuctionDetailPage() {
                 <p style={{ color: "var(--text-tertiary)" }}>Price</p>
                 <p className="mt-1 font-bold" style={{ color: "var(--text-primary)" }}>
                   {display.auctionType === "dutch"
-                    ? formatAmount(display.currentDutchPrice ?? display.currentBid ?? display.startPrice)
+                    ? formatAmount(display.currentDutchPrice ?? display.currentBid ?? display.startPrice, auction.token_unit)
                     : display.auctionType === "english"
-                      ? formatAmount(display.currentBid)
-                      : formatAmount(display.startPrice)}
+                      ? formatAmount(display.currentBid, auction.token_unit)
+                      : formatAmount(display.startPrice, auction.token_unit)}
                 </p>
               </div>
               {display.auctionType === "dutch" ? (
                 <div className="rounded-xl p-4 sm:col-span-2" style={{ background: "var(--badge-bg)" }}>
                   <p style={{ color: "var(--text-tertiary)" }}>Reserve price</p>
                   <p className="mt-1 font-bold" style={{ color: "var(--text-primary)" }}>
-                    {formatAmount(display.reservePrice)}
+                    {formatAmount(display.reservePrice, auction.token_unit)}
                   </p>
                 </div>
               ) : null}
@@ -384,6 +385,7 @@ export default function AuctionDetailPage() {
               currentBid={display.currentBid}
               currentDutchPrice={display.currentDutchPrice}
               startPrice={display.startPrice}
+              tokenUnit={auction.token_unit || "USDC"}
               onBidPlaced={() => setReloadKey((value) => value + 1)}
             />
           ) : null}
@@ -444,7 +446,7 @@ export default function AuctionDetailPage() {
                     <strong>Winner:</strong> {display.winningBidder}
                   </p>
                   <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                    <strong>Winning amount:</strong> {formatAmount(display.winningBid)}
+                    <strong>Winning amount:</strong> {formatAmount(display.winningBid, auction.token_unit)}
                   </p>
                 </>
               ) : (
