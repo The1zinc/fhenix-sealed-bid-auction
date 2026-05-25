@@ -32,6 +32,7 @@ type WalletContextValue = {
   isConnecting: boolean;
   error: string | null;
   connectWallet: () => Promise<void>;
+  disconnectWallet: () => void;
   switchToArbitrumSepolia: () => Promise<void>;
 };
 
@@ -116,6 +117,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function disconnectWallet() {
+    setAddress(null);
+    setChainId(null);
+    setProvider(null);
+    setSigner(null);
+    window.localStorage.removeItem("sealedAuctionWalletConnected");
+  }
+
   useEffect(() => {
     if (typeof window === "undefined" || !window.ethereum) {
       return;
@@ -160,6 +169,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isConnecting,
         error,
         connectWallet,
+        disconnectWallet,
         switchToArbitrumSepolia,
       }}
     >
@@ -182,14 +192,15 @@ function truncateAddress(address: string) {
 }
 
 export default function WalletConnect() {
-  const { address, chainId, connectWallet, isConnecting, error } = useWallet();
+  const { address, chainId, connectWallet, disconnectWallet, isConnecting, error } = useWallet();
   const wrongNetwork = chainId !== null && chainId !== ARBITRUM_SEPOLIA_CHAIN_ID;
 
   return (
     <div className="flex flex-col items-end gap-2">
       <button
         type="button"
-        onClick={connectWallet}
+        onClick={address ? disconnectWallet : connectWallet}
+        title={address ? "Click to disconnect" : undefined}
         disabled={isConnecting}
         className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-300 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
         style={{
